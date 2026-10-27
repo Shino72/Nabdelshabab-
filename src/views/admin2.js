@@ -163,6 +163,7 @@ function settingsPage(ctx, { s, errors = [], demoCount }) {
         ${area('about_body', 'صفحة «عن الموقع»', 10)}${area('advertise_body', 'مقدمة صفحة «أعلن معنا»', 6)}
         ${area('privacy_body', 'سياسة الخصوصية', 10)}${area('terms_body', 'شروط الاستخدام', 10)}
         <label class="wide">نص حقوق النشر في التذييل<input name="footer_note" maxlength="200" value="${s.footer_note}"></label>
+        <label class="wide">سطر في أسفل الموقع تمامًا (اتركه فارغًا لإخفائه)<input name="project_note" maxlength="120" value="${s.project_note}"></label>
       </fieldset>
       <div class="sticky-save"><button class="btn btn-primary" type="submit">حفظ الإعدادات</button></div>
     </form>

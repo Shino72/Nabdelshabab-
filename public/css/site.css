@@ -350,6 +350,7 @@ details.report summary { font-size: .76rem; color: var(--muted); cursor: pointer
 .credits strong { color: #fff; font-weight: 600; }
 .footer-bottom { border-top: 1px solid rgba(255,255,255,.12); padding-block: 1rem; font-size: .8rem; color: #93a3bb; text-align: center; }
 .footer-bottom p { margin: 0; }
+.footer-bottom .project-note { margin-top: .45rem; color: #c8d3e3; font-weight: 600; }
 
 /* ---------- الاستجابة لأحجام الشاشات ---------- */
 @media (max-width: 1100px) {

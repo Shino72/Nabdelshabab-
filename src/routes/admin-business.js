@@ -216,7 +216,7 @@ R.post('/admin/settings', guard('settings.manage', (ctx) => {
   const f = ctx.form;
   const v = {};
   const text = { site_name: 40, site_tagline: 80, site_description: 300, contact_email: 120, ads_email: 120, contact_phone: 30, whatsapp: 30, address: 200,
-    masthead_credits: 1000, footer_note: 200, about_body: 20000, privacy_body: 20000, terms_body: 20000, advertise_body: 10000 };
+    masthead_credits: 1000, project_note: 120, footer_note: 200, about_body: 20000, privacy_body: 20000, terms_body: 20000, advertise_body: 10000 };
   for (const [k, max] of Object.entries(text)) v[k] = f.str(k, max);
   for (const k of ['social_facebook', 'social_x', 'social_instagram', 'social_youtube', 'social_tiktok', 'social_telegram']) v[k] = f.str(k, 300);
   v.comments_enabled = f.bool('comments_enabled') ? '1' : '0';

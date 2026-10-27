@@ -193,7 +193,7 @@ function footer(ctx) {
     </ul></div>
   </div>
   ${credits.length ? html`<div class="wrap credits" aria-label="إدارة الموقع">${credits.map((c) => html`<p>${c.label ? html`<span>${c.label}:</span> ` : ''}<strong>${c.name}</strong></p>`)}</div>` : ''}
-  <div class="wrap footer-bottom"><p>© ${year} ${site.site_name}. ${site.footer_note}</p></div>
+  <div class="wrap footer-bottom"><p>© ${year} ${site.site_name}. ${site.footer_note}</p>${site.project_note ? html`<p class="project-note">${site.project_note}</p>` : ''}</div>
 </footer>`;
 }
 

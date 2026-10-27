@@ -90,7 +90,7 @@ test('كل الصفحات العامة والروابط الأساسية تعم�
   }
   for (const p of ['/about', '/contact', '/privacy', '/terms', '/advertise', '/archive', '/multimedia', '/search']) assert.equal((await c.get(p)).status, 200, p);
   const about = await c.get('/about');
-  for (const name of ['رئيس مجلس الإدارة', 'سيف خالد عامر', 'د. فاطمة الزهراء', 'د. حمدان']) assert.ok(about.text.includes(name), name);
+  for (const name of ['رئيس مجلس الإدارة', 'سيف خالد عامر', 'دكتور فاطمة الزهراء', 'دكتور حمدان', 'مشروع جامعي']) assert.ok(about.text.includes(name), name);
   const nf = await c.get('/no-such-page');
   assert.equal(nf.status, 404);
   assert.match(nf.text, /الصفحة غير موجودة/);
