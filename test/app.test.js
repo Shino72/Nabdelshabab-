@@ -67,6 +67,16 @@ before(async () => {
 after(async () => { await app.stop(); await testDb.drop(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
 /* ===================== الواجهة العامة ===================== */
+test('بيانات التواصل الافتراضية: الهاتف وواتساب والبريد', async () => {
+  for (const page of ['/advertise', '/about']) {
+    const r = await new Client().get(page);
+    assert.equal(r.status, 200);
+    assert.match(r.text, /href="tel:01101135785"/, page);
+    assert.match(r.text, /href="https:\/\/wa\.me\/201101135785"/, page);
+    assert.match(r.text, /mailto:Seifkhaledamer6@gmail\.com/, page);
+    assert.ok(!r.text.includes('example.com'), page);
+  }
+});
 test('الصفحة الرئيسية تعمل مع RTL وشريط العاجل وترويسات الأمان', async () => {
   const r = await new Client().get('/');
   assert.equal(r.status, 200);
