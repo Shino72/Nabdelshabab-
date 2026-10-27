@@ -4,15 +4,11 @@
  * كُتب الموقع على واجهة SQLite متزامنة؛ وللإبقاء على النماذج والمسارات كما هي تعمل الاستعلامات
  * داخل Worker مستقل (node-postgres) وينتظر الخيط الرئيسي النتيجة عبر Atomics.wait.
  *
- * يُشغَّل الـ Worker من نفس الملف (__filename): هذا يعمل سواء نُشر المشروع كما هو أو بعد تجميعه في ملف واحد.
- * لذلك لا يستورد هذا الملف أي وحدة أخرى من المشروع.
+ * كود الـ Worker هو الدالة runWorker نفسها تُمرَّر نصًا، فيجب ألا تعتمد على أي متغير خارجها.
  */
-const { Worker, MessageChannel, receiveMessageOnPort, isMainThread, workerData } = require('node:worker_threads');
+const { Worker, MessageChannel, receiveMessageOnPort } = require('node:worker_threads');
 
-const KIND = 'nabd-bridge';
 const TIMEOUT_MS = 25000;
-
-if (!isMainThread && workerData && workerData.kind === KIND) runWorker();
 
 /* ---------------- داخل الـ Worker ---------------- */
 // خانات الذاكرة المشتركة: 0 = وصل رد، 1 = بدأ العامل، 2 = نجح الاتصال بقاعدة البيانات مرة واحدة على الأقل
@@ -26,7 +22,7 @@ function runWorker() {
     Atomics.notify(sig, 0);
   };
   let pg;
-  try { pg = require('pg'); } catch (e) {
+  try { pg = require(workerData.pgPath || 'pg'); } catch (e) {
     // تعذر تحميل مكتبة pg: نرد على كل طلب بالسبب بدل ترك الخادم ينتظر
     port.on('message', () => reply({ ok: false, error: { message: `تعذر تحميل مكتبة pg: ${e.message}`, code: e.code } }));
     return;
@@ -92,6 +88,7 @@ let worker = null;
 let port = null;
 let sig = null;
 let dbConfig = null;
+let lastError = null;
 
 function configure(config) { dbConfig = config; }
 
@@ -100,10 +97,14 @@ function ensureWorker() {
   if (!dbConfig) throw new Error('لم يُضبط اتصال قاعدة البيانات (DATABASE_URL)');
   const { port1, port2 } = new MessageChannel();
   const signal = new SharedArrayBuffer(12);
-  const w = new Worker(__filename, { workerData: { kind: KIND, port: port2, signal, db: dbConfig }, transferList: [port2] });
+  // الكود يُمرَّر نصًا (eval) بدل مسار هذا الملف: على Vercel تُحوَّل الملفات وقد لا يطابق __filename ملفًا موجودًا
+  let pgPath = 'pg';
+  try { pgPath = require.resolve('pg'); } catch { /* يُحمَّل بالاسم */ }
+  const code = `const { workerData } = require('node:worker_threads');\n(${runWorker.toString()})();`;
+  const w = new Worker(code, { eval: true, workerData: { pgPath, port: port2, signal, db: dbConfig }, transferList: [port2] });
   w.unref();
-  w.on('error', (e) => { console.error('توقف عامل قاعدة البيانات:', e); if (worker === w) reset(); });
-  w.on('exit', () => { if (worker === w) reset(); });
+  w.on('error', (e) => { console.error('توقف عامل قاعدة البيانات:', e); lastError = e; if (worker === w) reset(); });
+  w.on('exit', (code) => { if (worker === w) { lastError ||= new Error(`exit code ${code}`); reset(); } });
   worker = w;
   port1.unref();
   port = port1;
@@ -114,6 +115,29 @@ function reset() {
   worker = null;
   port = null;
   sig = null;
+}
+
+/*
+ * تشغيل العامل وانتظار بدئه دون حجز الخيط الرئيسي. على Vercel لا يبدأ العامل بينما الخيط الرئيسي
+ * محجوز في Atomics.wait، لذا يجب استدعاء هذه الدالة (await) قبل أي استعلام في كل طلب.
+ */
+const START_TIMEOUT_MS = 20000;
+let starting = null;
+function start() {
+  if (worker && Atomics.load(sig, 1)) return Promise.resolve();
+  if (starting) return starting;
+  ensureWorker();
+  const w = worker;
+  starting = new Promise((resolve, reject) => {
+    const began = Date.now();
+    const timer = setInterval(() => {
+      if (worker !== w) { finish(); return reject(Object.assign(new Error(`تعذر تشغيل عامل قاعدة البيانات: ${lastError ? lastError.message : 'توقف قبل أن يبدأ'}`), { code: 'DB_WORKER' })); }
+      if (Atomics.load(sig, 1)) { finish(); return resolve(); }
+      if (Date.now() - began > START_TIMEOUT_MS) { finish(); reset(); reject(Object.assign(new Error('لم يبدأ عامل قاعدة البيانات خلال 20 ثانية'), { code: 'DB_WORKER' })); }
+    }, 10);
+    const finish = () => { clearInterval(timer); starting = null; };
+  });
+  return starting;
 }
 
 function call(op, payload = {}) {
@@ -137,4 +161,4 @@ function close() {
   try { call('close'); } finally { reset(); }
 }
 
-module.exports = { configure, call, close };
+module.exports = { configure, start, call, close };

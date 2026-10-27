@@ -305,6 +305,13 @@ function tx(fn) {
 // قاعدة بيانات Supabase مشتركة؟ نرفض العمل فوق جداول تطبيق آخر بدل الكتابة فيها
 const FOREIGN_MARKERS = ['staff_profiles', 'article_revisions'];
 
+// يجب انتظارها قبل أول استعلام في كل طلب (انظر bridge.start)
+async function connect() {
+  if (!config.db) return; // open() يشرح الخطأ
+  bridge.configure(config.db);
+  await bridge.start();
+}
+
 function open() {
   if (!config.db) {
     // أسماء المتغيرات الموجودة فقط (بدون قيمها) لتسهيل معرفة ما ينقص
@@ -353,4 +360,4 @@ END $$`);
 
 function close() { bridge.close(); cache.clear(); }
 
-module.exports = { open, close, all, get, run, tx, exec };
+module.exports = { connect, open, close, all, get, run, tx, exec };

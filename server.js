@@ -80,6 +80,7 @@ async function handle(req, res) {
 
 /* ---------- التهيئة: إنشاء الجداول والبيانات الأساسية (مرة لكل تشغيل) ---------- */
 async function init() {
+  await db.connect();
   const { fresh } = db.open();
   seed.seedBase();
   let adm;
@@ -105,6 +106,7 @@ const SETUP_ERROR = (msg) => `<!doctype html><html lang="ar" dir="rtl"><meta cha
 async function vercelHandler(req, res) {
   try {
     await ensureReady();
+    await db.connect(); // يعيد تشغيل العامل إن توقف بعد التهيئة
   } catch (e) {
     console.error('تعذرت تهيئة الموقع:', e);
     const known = e.code === 'NO_DATABASE' || e.code === 'FOREIGN_DATABASE';

@@ -22,6 +22,7 @@ function ask(rl, question, hidden = false) {
 }
 
 async function main() {
+  await db.connect();
   db.open();
   seed.seedBase();
   const args = Object.fromEntries(process.argv.slice(2).map((a) => { const [k, ...v] = a.replace(/^--/, '').split('='); return [k, v.join('=')]; }));
