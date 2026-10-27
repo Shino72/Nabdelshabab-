@@ -11,6 +11,7 @@ const { cleanupSessions } = require('./src/security');
 const storage = require('./src/storage');
 const { UPLOAD_PATH } = require('./src/uploads');
 const { THEME_SCRIPT } = require('./src/views/layout');
+const { esc } = require('./src/util');
 
 require('./src/routes/public');
 require('./src/routes/admin');
@@ -107,7 +108,9 @@ async function vercelHandler(req, res) {
   } catch (e) {
     console.error('تعذرت تهيئة الموقع:', e);
     const known = e.code === 'NO_DATABASE' || e.code === 'FOREIGN_DATABASE';
-    const msg = known ? e.message : 'تعذر الاتصال بقاعدة البيانات. راجع إعدادات Supabase ثم أعد المحاولة.';
+    // سبب مختصر يساعد صاحب الموقع على الإصلاح دون الرجوع للسجلات (بعد حذف أي روابط اتصال)
+    const reason = String(`${e.code ? `${e.code}: ` : ''}${e.message || ''}`).replace(/\b\w+:\/\/\S+/g, '[url]').slice(0, 200);
+    const msg = known ? esc(e.message) : `تعذر الاتصال بقاعدة البيانات. راجع إعدادات Supabase ثم أعد المحاولة.<br><small dir="ltr">${esc(reason)}</small>`;
     res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': '30' });
     return res.end(SETUP_ERROR(msg));
   }
