@@ -314,6 +314,8 @@ function open() {
   }
   bridge.configure(config.db);
   return tx(() => {
+    // لا ننتظر للأبد إن كانت نسخة أخرى عالقة وهي تمسك القفل
+    exec("SET LOCAL lock_timeout = '10s'");
     all('SELECT pg_advisory_xact_lock(724519033)');
     exec('CREATE TABLE IF NOT EXISTS nabd_schema (version integer NOT NULL)');
     const row = get('SELECT version FROM nabd_schema LIMIT 1');

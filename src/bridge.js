@@ -15,19 +15,32 @@ const TIMEOUT_MS = 25000;
 if (!isMainThread && workerData && workerData.kind === KIND) runWorker();
 
 /* ---------------- داخل الـ Worker ---------------- */
+// خانات الذاكرة المشتركة: 0 = وصل رد، 1 = بدأ العامل، 2 = نجح الاتصال بقاعدة البيانات مرة واحدة على الأقل
 function runWorker() {
-  const pg = require('pg');
+  const { port, signal, db } = workerData;
+  const sig = new Int32Array(signal);
+  Atomics.store(sig, 1, 1);
+  const reply = (msg) => {
+    port.postMessage(msg);
+    Atomics.store(sig, 0, 1);
+    Atomics.notify(sig, 0);
+  };
+  let pg;
+  try { pg = require('pg'); } catch (e) {
+    // تعذر تحميل مكتبة pg: نرد على كل طلب بالسبب بدل ترك الخادم ينتظر
+    port.on('message', () => reply({ ok: false, error: { message: `تعذر تحميل مكتبة pg: ${e.message}`, code: e.code } }));
+    return;
+  }
   // COUNT وSUM تعيد bigint/numeric؛ القيم هنا أصغر بكثير من حدود أرقام JavaScript
   pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
   pg.types.setTypeParser(1700, (v) => (v === null ? null : Number(v)));
 
-  const { port, signal, db } = workerData;
-  const sig = new Int32Array(signal);
   let pool = null;
   let txClient = null;
   const getPool = () => {
     if (!pool) {
-      pool = new pg.Pool({ ...db, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000 });
+      pool = new pg.Pool({ ...db, max: 3, idleTimeoutMillis: 10000, connectionTimeoutMillis: 8000, query_timeout: 15000 });
+      pool.on('connect', () => Atomics.store(sig, 2, 1));
       pool.on('error', () => { /* اتصال خامل انقطع: الاستعلام التالي يفتح اتصالًا جديدًا */ });
     }
     return pool;
@@ -40,12 +53,6 @@ function runWorker() {
       return fn();
     }
   };
-  const reply = (msg) => {
-    port.postMessage(msg);
-    Atomics.store(sig, 0, 1);
-    Atomics.notify(sig, 0);
-  };
-
   port.on('message', async (m) => {
     try {
       let result = null;
@@ -92,7 +99,7 @@ function ensureWorker() {
   if (worker) return;
   if (!dbConfig) throw new Error('لم يُضبط اتصال قاعدة البيانات (DATABASE_URL)');
   const { port1, port2 } = new MessageChannel();
-  const signal = new SharedArrayBuffer(4);
+  const signal = new SharedArrayBuffer(12);
   const w = new Worker(__filename, { workerData: { kind: KIND, port: port2, signal, db: dbConfig }, transferList: [port2] });
   w.unref();
   w.on('error', (e) => { console.error('توقف عامل قاعدة البيانات:', e); if (worker === w) reset(); });
@@ -114,8 +121,9 @@ function call(op, payload = {}) {
   Atomics.store(sig, 0, 0);
   port.postMessage({ op, ...payload });
   if (Atomics.wait(sig, 0, 0, TIMEOUT_MS) === 'timed-out') {
+    const stage = !Atomics.load(sig, 1) ? 'worker did not start' : !Atomics.load(sig, 2) ? 'no connection to the database server' : `no reply to ${op}`;
     reset();
-    throw new Error('انتهت مهلة الاتصال بقاعدة البيانات');
+    throw Object.assign(new Error(`انتهت مهلة الاتصال بقاعدة البيانات (${stage})`), { code: 'DB_TIMEOUT' });
   }
   const received = receiveMessageOnPort(port);
   if (!received) { reset(); throw new Error('لم يصل رد من عامل قاعدة البيانات'); }
