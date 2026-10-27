@@ -562,3 +562,17 @@ test('تسجيل الخروج ينهي الجلسة', async () => {
   assert.equal(r.status, 303);
   assert.equal((await admin.get('/admin')).status, 302);
 });
+
+test('إيقاف SEED_DEMO يحذف المحتوى التجريبي عند التشغيل التالي', async () => {
+  const config = require('../src/config');
+  await require('../src/seed').seedDemo();
+  assert.ok(db.get('SELECT COUNT(*) AS n FROM articles WHERE is_demo = 1').n > 0);
+  await app.stop();
+  config.seedDemo = false;
+  const s = await app.start({ port: 0, host: '127.0.0.1', quiet: true });
+  base = `http://127.0.0.1:${s.address().port}`;
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM articles WHERE is_demo = 1').n, 0);
+  const home = await new Client().get('/');
+  assert.ok(!home.text.includes('يعرض الموقع حاليًا محتوى تجريبيًا'));
+  assert.match(home.text, /عنوان خبر معدّل للاختبار/, 'المحتوى الحقيقي باقٍ');
+});

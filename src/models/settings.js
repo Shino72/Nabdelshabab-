@@ -6,8 +6,7 @@ const DEFAULTS = {
   site_tagline: 'الخبر بإيقاع جيل جديد',
   site_description: 'نبض الشباب منصة إخبارية عربية تغطي أخبار مصر والعالم العربي والعالم في السياسة والاقتصاد والرياضة والفن والتكنولوجيا، مع تقارير وتحليلات ومقالات رأي.',
   contact_email: 'Seifkhaledamer6@gmail.com',
-  // فارغ: صفحة «أعلن معنا» تعرض البريد العام أعلاه بدل تكراره
-  ads_email: '',
+  ads_email: 'Seifkhaledamer6@gmail.com',
   contact_phone: '01101135785',
   whatsapp: '+201101135785',
   address: 'القاهرة، جمهورية مصر العربية',

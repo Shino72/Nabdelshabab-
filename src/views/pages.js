@@ -326,7 +326,7 @@ function advertise(ctx, { slots, units, values = {}, errors = [], sent, token })
       <p class="muted">لا يتم الدفع عبر الموقع حاليًا. بعد مراجعة الطلب نرسل لك عرض السعر وطرق الدفع المتاحة.</p>
     </section>
     <section class="contact-box"><h2>تواصل مباشر مع فريق الإعلانات</h2><ul class="contact-list">
-      ${site.ads_email ? html`<li>البريد الإلكتروني: <a href="mailto:${site.ads_email}">${site.ads_email}</a></li>` : ''}</ul>${contactBlock(site)}</section>
+      ${site.ads_email && site.ads_email !== site.contact_email ? html`<li>البريد الإلكتروني: <a href="mailto:${site.ads_email}">${site.ads_email}</a></li>` : ''}</ul>${contactBlock(site)}</section>
   </div>`;
   return layout(ctx, { title: 'أعلن معنا', description: `احجز مساحتك الإعلانية على ${site.site_name}`, canonical: '/advertise', body });
 }

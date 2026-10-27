@@ -90,6 +90,7 @@ async function init() {
   }
   let demo = 0;
   if (fresh && config.seedDemo) demo = await seed.seedDemo();
+  else if (!config.seedDemo && seed.demoCount()) seed.deleteDemo();
   cleanupSessions();
   return { adm, demo };
 }
