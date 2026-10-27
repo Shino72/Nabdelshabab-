@@ -19,6 +19,44 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
+  // حد حجم الطلب على الاستضافة (Vercel: 4.5 ميجابايت): تنبيه قبل الإرسال بدل صفحة خطأ
+  var maxRequest = parseFloat(document.body.getAttribute('data-max-request-mb') || '0') * 1048576;
+  var uploadForm = $('.upload-form');
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (e.defaultPrevented || !maxRequest || form.enctype !== 'multipart/form-data' || form === uploadForm) return;
+    var total = 0;
+    $$('input[type="file"]', form).forEach(function (inp) { Array.prototype.forEach.call(inp.files || [], function (f) { total += f.size; }); });
+    if (total > maxRequest - 65536) { e.preventDefault(); window.alert('حجم الصور المختارة أكبر من المسموح في المرة الواحدة. اختر صورة أصغر.'); }
+  });
+  // رفع عدة صور من مكتبة الوسائط: صورة في كل طلب حتى لا يتجاوز الطلب الحد المسموح
+  if (uploadForm && window.fetch && window.FormData) uploadForm.addEventListener('submit', function (e) {
+    var input = $('input[type="file"]', uploadForm);
+    var files = input && input.files ? Array.prototype.slice.call(input.files) : [];
+    if (files.length < 2 && !(maxRequest && files[0] && files[0].size > maxRequest - 65536)) return;
+    e.preventDefault();
+    var btn = $('button[type="submit"]', uploadForm), errors = [], i = 0;
+    btn.disabled = true;
+    function next() {
+      if (i >= files.length) {
+        if (errors.length) window.alert(errors.join('\n'));
+        window.location.href = '/admin/media?ok=uploaded';
+        return;
+      }
+      var f = files[i++];
+      btn.textContent = 'جارٍ رفع ' + i + ' من ' + files.length + '…';
+      if (maxRequest && f.size > maxRequest - 65536) { errors.push(f.name + ': حجم الصورة أكبر من المسموح'); return next(); }
+      var fd = new FormData();
+      fd.append('file', f);
+      fd.append('_csrf', csrf);
+      fetch('/admin/media/upload', { method: 'POST', body: fd, headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d.errors) errors = errors.concat(d.errors); }, function () { errors.push(f.name + ': تعذر الرفع'); })
+        .then(next);
+    }
+    next();
+  });
+
   // عدّاد الأحرف
   $$('[data-count]').forEach(function (el) {
     var max = +el.getAttribute('data-count');

@@ -1,8 +1,7 @@
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
 const crypto = require('node:crypto');
 const config = require('./config');
+const storage = require('./storage');
 
 // التعرف على نوع الصورة من محتواها الفعلي وليس من الامتداد (SVG غير مسموح لأسباب أمنية)
 function detectImage(buf) {
@@ -50,16 +49,18 @@ function saveImage(file) {
   if (width && height && (width > 12000 || height > 12000)) return { error: 'أبعاد الصورة كبيرة جدًا' };
   const d = new Date();
   const sub = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-  const dir = path.join(config.uploadsDir, sub);
-  fs.mkdirSync(dir, { recursive: true });
   const name = crypto.randomBytes(12).toString('hex') + kind.ext;
-  fs.writeFileSync(path.join(dir, name), file.data, { mode: 0o644 });
+  try { storage.put(`${sub}/${name}`, file.data, kind.mime); } catch (e) {
+    console.error('upload failed', e.message);
+    return { error: 'تعذر حفظ الصورة. حاول مرة أخرى.' };
+  }
   return { path: `/uploads/${sub}/${name}`, mime: kind.mime, size: file.data.length, width, height, originalName: file.filename };
 }
 
+const UPLOAD_PATH = /^\/uploads\/(\d{4}\/\d{2}\/[a-f0-9]{24}\.(?:jpg|png|webp|gif))$/;
 function removeFile(publicPath) {
-  if (!/^\/uploads\/\d{4}\/\d{2}\/[a-f0-9]{24}\.(jpg|png|webp|gif)$/.test(publicPath)) return;
-  try { fs.unlinkSync(path.join(config.uploadsDir, publicPath.replace('/uploads/', ''))); } catch { /* تجاهل */ }
+  const m = UPLOAD_PATH.exec(publicPath);
+  if (m) storage.remove(m[1]);
 }
 
-module.exports = { detectImage, imageSize, saveImage, removeFile };
+module.exports = { detectImage, imageSize, saveImage, removeFile, UPLOAD_PATH };

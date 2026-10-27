@@ -49,7 +49,10 @@ function getSession(token) {
   return { tokenHash: row.token_hash, csrf: row.csrf, user: { id: row.id, name: row.name, email: row.email, role: row.role, title: row.title } };
 }
 const destroySession = (token) => run('DELETE FROM sessions WHERE token_hash = ?', sha256(token));
-const cleanupSessions = () => run('DELETE FROM sessions WHERE expires_at < ?', nowIso());
+function cleanupSessions() {
+  run('DELETE FROM sessions WHERE expires_at < ?', nowIso());
+  run('DELETE FROM rate_limits WHERE reset_at < ?', Date.now());
+}
 function safeEqual(a, b) {
   const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || ''));
   return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
@@ -71,16 +74,16 @@ function verifyFormToken(name, token) {
 }
 
 /* ---------- تحديد معدل الطلبات ---------- */
-const buckets = new Map();
+// العدّادات في قاعدة البيانات لأن الموقع قد يعمل على عدة نسخ في نفس الوقت (Vercel)
 function rateLimit(key, max, windowMs) {
   const now = Date.now();
-  let b = buckets.get(key);
-  if (!b || b.reset < now) { b = { n: 0, reset: now + windowMs }; buckets.set(key, b); }
-  b.n++;
-  return b.n <= max;
+  const r = get(`INSERT INTO rate_limits (key, n, reset_at) VALUES (?, 1, ?)
+    ON CONFLICT (key) DO UPDATE SET n = CASE WHEN rate_limits.reset_at < ? THEN 1 ELSE rate_limits.n + 1 END,
+      reset_at = CASE WHEN rate_limits.reset_at < ? THEN EXCLUDED.reset_at ELSE rate_limits.reset_at END
+    RETURNING n`, sha256(key), now + windowMs, now, now);
+  return r.n <= max;
 }
-const resetRate = (key) => buckets.delete(key);
-setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (b.reset < now) buckets.delete(k); }, 60000).unref();
+const resetRate = (key) => run('DELETE FROM rate_limits WHERE key = ?', sha256(key));
 const ipHash = (ip) => sha256(`${config.secret}|${ip}`).slice(0, 24);
 
 /* ---------- الأدوار والصلاحيات ---------- */

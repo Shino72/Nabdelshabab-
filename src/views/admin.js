@@ -36,7 +36,7 @@ function shell(title, body, bodyClass = '') {
 <meta name="robots" content="noindex, nofollow"><title>${title} | لوحة التحكم</title>
 <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${FONTS}">
-<link rel="stylesheet" href="${assets.url('css/admin.css')}"></head><body class="${bodyClass}">${body}<script src="${assets.url('js/admin.js')}" defer></script></body></html>`;
+<link rel="stylesheet" href="${assets.url('css/admin.css')}"></head><body class="${bodyClass}"${require('../config').maxRequestMb ? raw(` data-max-request-mb="${require('../config').maxRequestMb}"`) : ''}>${body}<script src="${assets.url('js/admin.js')}" defer></script></body></html>`;
 }
 
 function layout(ctx, { title, body, active = '', actions = '' }) {

@@ -47,7 +47,7 @@ function mostRead({ sinceDay, limit = 5 }) {
   const rows = all(`SELECT ${CARD}, SUM(v.views) AS period_views FROM article_views_daily v
     JOIN articles a ON a.id = v.article_id JOIN categories c ON c.id = a.category_id LEFT JOIN users u ON u.id = a.author_id
     WHERE v.day >= ? AND a.status = 'published' AND a.published_at <= ?
-    GROUP BY a.id ORDER BY period_views DESC LIMIT ?`, sinceDay, nowIso(), limit);
+    GROUP BY a.id, c.id, u.id ORDER BY period_views DESC LIMIT ?`, sinceDay, nowIso(), limit);
   if (rows.length < limit) rows.push(...listLive({ limit: limit - rows.length, exclude: rows.map((r) => r.id), orderByViews: true }));
   return rows;
 }
@@ -121,7 +121,7 @@ function setTags(articleId, names) {
       if (get('SELECT 1 AS x FROM tags WHERE slug = ?', slug)) slug = `${slug}-${Date.now().toString(36)}`;
       tag = { id: run('INSERT INTO tags (name, slug) VALUES (?, ?)', name, slug).id };
     }
-    run('INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)', articleId, tag.id);
+    run('INSERT INTO article_tags (article_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING', articleId, tag.id);
   }
 }
 

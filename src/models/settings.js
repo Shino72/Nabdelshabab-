@@ -84,11 +84,15 @@ const DEFAULTS = {
 - فريق يتابع حملتك من الحجز حتى نهايتها.`,
 };
 
-let cache = null;
+// ذاكرة مؤقتة قصيرة: قد يعمل الموقع على عدة نسخ، فتصل تعديلات الإعدادات إلى كل النسخ خلال ثوانٍ
+const TTL_MS = 10000;
+let cache = null, cachedAt = 0;
 function getAll() {
-  if (!cache) {
-    cache = { ...DEFAULTS };
-    for (const r of all('SELECT key, value FROM settings')) if (r.key in DEFAULTS) cache[r.key] = r.value ?? '';
+  if (!cache || Date.now() - cachedAt > TTL_MS) {
+    const next = { ...DEFAULTS };
+    for (const r of all('SELECT key, value FROM settings')) if (r.key in DEFAULTS) next[r.key] = r.value ?? '';
+    cache = next;
+    cachedAt = Date.now();
   }
   return cache;
 }

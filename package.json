@@ -2,15 +2,20 @@
   "name": "nabd-alshabab-news",
   "version": "1.0.0",
   "private": true,
-  "description": "منصة إخبارية عربية متكاملة: موقع عام، لوحة تحكم، نظام إعلانات، قاعدة بيانات SQLite",
+  "description": "منصة إخبارية عربية متكاملة: موقع عام، لوحة تحكم، نظام إعلانات، قاعدة بيانات PostgreSQL (Supabase)",
   "main": "server.js",
-  "engines": { "node": ">=22.13" },
-  "scripts": {
-    "start": "node --disable-warning=ExperimentalWarning server.js",
-    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
-    "create-admin": "node --disable-warning=ExperimentalWarning scripts/create-admin.js",
-    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js",
-    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"test/**/*.test.js\""
+  "engines": {
+    "node": ">=22.13"
   },
-  "license": "UNLICENSED"
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "create-admin": "node scripts/create-admin.js",
+    "backup": "node scripts/backup.js",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "pg": "8.23.1"
+  }
 }

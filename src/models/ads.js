@@ -19,14 +19,14 @@ function pickForSlot(key) {
 }
 function countImpression(id, day) {
   run('UPDATE ad_campaigns SET impressions = impressions + 1 WHERE id = ?', id);
-  run('INSERT INTO ad_stats_daily (campaign_id, day, impressions, clicks) VALUES (?, ?, 1, 0) ON CONFLICT(campaign_id, day) DO UPDATE SET impressions = impressions + 1', id, day);
+  run('INSERT INTO ad_stats_daily (campaign_id, day, impressions, clicks) VALUES (?, ?, 1, 0) ON CONFLICT(campaign_id, day) DO UPDATE SET impressions = ad_stats_daily.impressions + 1', id, day);
 }
 function registerClick(id, day, count = true) {
   const c = get('SELECT id, target_url FROM ad_campaigns WHERE id = ?', id);
   if (!c) return null;
   if (count) {
     run('UPDATE ad_campaigns SET clicks = clicks + 1 WHERE id = ?', id);
-    run('INSERT INTO ad_stats_daily (campaign_id, day, impressions, clicks) VALUES (?, ?, 0, 1) ON CONFLICT(campaign_id, day) DO UPDATE SET clicks = clicks + 1', id, day);
+    run('INSERT INTO ad_stats_daily (campaign_id, day, impressions, clicks) VALUES (?, ?, 0, 1) ON CONFLICT(campaign_id, day) DO UPDATE SET clicks = ad_stats_daily.clicks + 1', id, day);
   }
   return c.target_url;
 }

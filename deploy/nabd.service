@@ -7,7 +7,7 @@ After=network.target
 Type=simple
 User=nabd
 WorkingDirectory=/opt/nabd
-ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server.js
+ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3
 NoNewPrivileges=true

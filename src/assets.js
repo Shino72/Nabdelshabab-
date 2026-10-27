@@ -8,7 +8,8 @@ const config = require('./config');
 const cache = new Map();
 function url(rel) {
   if (!cache.has(rel) || !config.isProd) {
-    let v = '0';
+    // على Vercel قد لا تكون الملفات الثابتة داخل الدالة نفسها: نستخدم رقم النسخة المنشورة بدلًا من بصمة الملف
+    let v = (process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || '0').slice(0, 10);
     try { v = crypto.createHash('sha1').update(fs.readFileSync(path.join(config.publicDir, rel))).digest('hex').slice(0, 10); } catch { /* تجاهل */ }
     cache.set(rel, v);
   }

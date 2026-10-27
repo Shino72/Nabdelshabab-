@@ -34,10 +34,10 @@ const AD_SLOTS = [
 function seedBase() {
   tx(() => {
     CATEGORIES.forEach(([slug, name, desc, kind], i) => {
-      if (!get('SELECT 1 AS x FROM categories WHERE slug = ?', slug)) run('INSERT INTO categories (slug, name, description, kind, sort, show_on_home) VALUES (?,?,?,?,?,1)', slug, name, desc, kind, i + 1);
+      run('INSERT INTO categories (slug, name, description, kind, sort, show_on_home) VALUES (?,?,?,?,?,1) ON CONFLICT (slug) DO NOTHING', slug, name, desc, kind, i + 1);
     });
     AD_SLOTS.forEach(([key, name, page, w, h, price], i) => {
-      if (!get('SELECT 1 AS x FROM ad_slots WHERE key = ?', key)) run("INSERT INTO ad_slots (key, name, page, width, height, price, price_unit, active, sort) VALUES (?,?,?,?,?,?, 'week', 1, ?)", key, name, page, w, h, price, i + 1);
+      run("INSERT INTO ad_slots (key, name, page, width, height, price, price_unit, active, sort) VALUES (?,?,?,?,?,?, 'week', 1, ?) ON CONFLICT (key) DO NOTHING", key, name, page, w, h, price, i + 1);
     });
   });
 }
@@ -48,8 +48,14 @@ async function ensureAdminFromEnv() {
   if (!email || !password) return { created: false, missing: true };
   const err = validatePassword(password);
   if (err) throw new Error(`ADMIN_PASSWORD غير صالحة: ${err}`);
-  const id = Users.create({ name, email, passwordHash: await hashPassword(password), role: 'admin', title: 'إدارة الموقع' });
-  return { created: true, id };
+  const passwordHash = await hashPassword(password);
+  try {
+    const id = Users.create({ name, email, passwordHash, role: 'admin', title: 'إدارة الموقع' });
+    return { created: true, id };
+  } catch (e) {
+    if (e.code === '23505') return { created: false }; // أنشأته نسخة أخرى من الموقع في نفس اللحظة
+    throw e;
+  }
 }
 
 /* ---------------- المحتوى التجريبي ---------------- */

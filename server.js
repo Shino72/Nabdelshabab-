@@ -1,12 +1,15 @@
 'use strict';
 const http = require('node:http');
 const crypto = require('node:crypto');
+const { isMainThread } = require('node:worker_threads');
 const config = require('./src/config');
 const db = require('./src/db');
 const { parseCookies, serveFile, sendHtml, send } = require('./src/http');
 const router = require('./src/router');
 const seed = require('./src/seed');
 const { cleanupSessions } = require('./src/security');
+const storage = require('./src/storage');
+const { UPLOAD_PATH } = require('./src/uploads');
 const { THEME_SCRIPT } = require('./src/views/layout');
 
 require('./src/routes/public');
@@ -18,7 +21,7 @@ const pages = require('./src/views/pages');
 const themeHash = crypto.createHash('sha256').update(THEME_SCRIPT).digest('base64');
 const CSP = [
   "default-src 'self'", `script-src 'self' 'sha256-${themeHash}'`, "style-src 'self' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob:", 'frame-src https://www.youtube-nocookie.com', "connect-src 'self'", "form-action 'self'", "base-uri 'self'", "object-src 'none'",
+  `img-src 'self' data: blob:${storage.origin() ? ` ${storage.origin()}` : ''}`, 'frame-src https://www.youtube-nocookie.com', "connect-src 'self'", "form-action 'self'", "base-uri 'self'", "object-src 'none'",
 ].join('; ');
 const BOT = /bot|crawl|spider|slurp|facebookexternalhit|whatsapp|telegram|preview|monitor|curl|wget|python|httpclient|headless|lighthouse/i;
 
@@ -50,6 +53,13 @@ async function handle(req, res) {
       return pub.notFound(ctx);
     }
     if (path.startsWith('/uploads/')) {
+      // الصور محفوظة في Supabase Storage: تحويل دائم إلى رابطها العام (أسماء الملفات عشوائية ولا تتغير)
+      if (storage.enabled()) {
+        const m = UPLOAD_PATH.exec(path);
+        if (!m) return pub.notFound(ctx);
+        res.writeHead(301, { Location: storage.publicUrl(m[1]), 'Cache-Control': 'public, max-age=31536000, immutable', 'Content-Length': 0 });
+        return res.end();
+      }
       if (serveFile(ctx, config.uploadsDir, path.slice(9), { allowed: ['.jpg', '.jpeg', '.png', '.webp', '.gif'], maxAge: 2592000, extraHeaders: { 'Content-Security-Policy': "default-src 'none'", 'Content-Disposition': 'inline' } })) return;
       return pub.notFound(ctx);
     }
@@ -67,14 +77,46 @@ async function handle(req, res) {
   }
 }
 
-let server = null;
-async function start({ port = config.port, host = config.host, quiet = false } = {}) {
-  const { fresh } = db.open(config.dbFile);
+/* ---------- التهيئة: إنشاء الجداول والبيانات الأساسية (مرة لكل تشغيل) ---------- */
+async function init() {
+  const { fresh } = db.open();
   seed.seedBase();
-  const adm = await seed.ensureAdminFromEnv();
+  let adm;
+  try { adm = await seed.ensureAdminFromEnv(); } catch (e) {
+    console.error('تعذر إنشاء حساب المدير من متغيرات البيئة:', e.message);
+    adm = { created: false, error: e.message };
+  }
   let demo = 0;
   if (fresh && config.seedDemo) demo = await seed.seedDemo();
-  setInterval(cleanupSessions, 3600000).unref();
+  cleanupSessions();
+  return { adm, demo };
+}
+let ready = null;
+function ensureReady() {
+  ready ||= init().catch((e) => { ready = null; throw e; });
+  return ready;
+}
+
+const SETUP_ERROR = (msg) => `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الموقع غير جاهز</title>
+<body style="font-family:Tahoma,sans-serif;max-width:640px;margin:10vh auto;padding:0 16px;line-height:1.8"><h1>الموقع غير جاهز بعد</h1><p>${msg}</p></body></html>`;
+
+// نقطة الدخول على Vercel: دالة تستقبل كل الطلبات
+async function vercelHandler(req, res) {
+  try {
+    await ensureReady();
+  } catch (e) {
+    console.error('تعذرت تهيئة الموقع:', e);
+    const known = e.code === 'NO_DATABASE' || e.code === 'FOREIGN_DATABASE';
+    const msg = known ? e.message : 'تعذر الاتصال بقاعدة البيانات. راجع إعدادات Supabase ثم أعد المحاولة.';
+    res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': '30' });
+    return res.end(SETUP_ERROR(msg));
+  }
+  return handle(req, res);
+}
+
+let server = null;
+async function start({ port = config.port, host = config.host, quiet = false } = {}) {
+  const { adm, demo } = await ensureReady();
   server = http.createServer((req, res) => { handle(req, res); });
   server.keepAliveTimeout = 65000;
   server.requestTimeout = 60000;
@@ -85,19 +127,20 @@ async function start({ port = config.port, host = config.host, quiet = false } =
     if (demo) console.log(`✔ أُضيفت ${demo} مادة تجريبية (يمكن حذفها من الإعدادات في لوحة التحكم)`);
     if (adm.created) console.log('✔ أُنشئ حساب المدير من متغيرات البيئة. يُفضّل حذف ADMIN_PASSWORD من ملف .env الآن.');
     if (adm.missing) console.log('⚠ لا يوجد حساب مدير بعد. أنشئه بالأمر: npm run create-admin');
-    if (!process.env.SESSION_SECRET) console.log('ℹ لم يُضبط SESSION_SECRET؛ تم إنشاء مفتاح تلقائي داخل مجلد البيانات.');
   }
   return server;
 }
 async function stop() {
   if (server) await new Promise((r) => server.close(r));
   server = null;
+  ready = null;
   db.close();
 }
 
-if (require.main === module) {
+if (require.main === module && isMainThread) {
   start().catch((e) => { console.error('تعذر تشغيل الخادم:', e.message); process.exit(1); });
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { stop().finally(() => process.exit(0)); });
 }
 
-module.exports = { start, stop, handle };
+module.exports = vercelHandler;
+Object.assign(module.exports, { start, stop, handle, init: ensureReady });

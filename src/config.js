@@ -10,45 +10,82 @@ if (!process.env.SKIP_ENV_FILE && fs.existsSync(envFile)) {
 }
 const env = process.env;
 const bool = (v, d = false) => (v === undefined || v === '' ? d : /^(1|true|yes|on)$/i.test(v));
+const clean = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
 
-const dataDir = path.resolve(rootDir, env.DATA_DIR || 'data');
-const uploadsDir = path.resolve(rootDir, env.UPLOADS_DIR || 'uploads');
-fs.mkdirSync(dataDir, { recursive: true });
-fs.mkdirSync(uploadsDir, { recursive: true });
-
+const isVercel = !!env.VERCEL;
 const isProd = env.NODE_ENV === 'production';
 const port = parseInt(env.PORT || '3000', 10);
 
-function loadSecret() {
-  if (env.SESSION_SECRET) {
-    if (env.SESSION_SECRET.length < 32) throw new Error('SESSION_SECRET قصير جدًا: استخدم 32 حرفًا على الأقل');
-    return env.SESSION_SECRET;
-  }
-  // في حال عدم ضبطه: يُنشأ مفتاح عشوائي ويُحفظ داخل مجلد البيانات حتى لا تنتهي الجلسات بعد إعادة التشغيل
-  const f = path.join(dataDir, '.secret');
-  if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8').trim();
-  const s = crypto.randomBytes(48).toString('base64url');
-  fs.writeFileSync(f, s, { mode: 0o600 });
-  return s;
+/* ---------- قاعدة البيانات ---------- */
+// DATABASE_URL، أو POSTGRES_URL الذي يضيفه ربط Supabase بمشروع Vercel تلقائيًا
+function dbConfig() {
+  const raw = clean(env.DATABASE_URL) || clean(env.POSTGRES_URL);
+  if (!raw) return null;
+  let url;
+  try { url = new URL(raw); } catch { throw new Error('رابط قاعدة البيانات (DATABASE_URL) غير صالح'); }
+  // إعدادات SSL في الرابط تتجاوز الإعدادات أدناه في node-postgres، لذا تُحذف ويُضبط SSL صراحة
+  const noSsl = url.searchParams.get('sslmode') === 'disable';
+  for (const k of ['sslmode', 'sslrootcert', 'sslcert', 'sslkey', 'ssl']) url.searchParams.delete(k);
+  const local = noSsl || ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  const ca = clean(env.DATABASE_CA_CERT).replace(/\\n/g, '\n');
+  // شهادة Supabase موقّعة من جهة خاصة بها: تُتحقق منها عند ضبط DATABASE_CA_CERT، وإلا يبقى الاتصال مشفّرًا دون التحقق من الجهة
+  const ssl = local ? false : ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false };
+  return { connectionString: url.toString(), ssl };
 }
 
-module.exports = {
+/* ---------- تخزين الصور (Supabase Storage) ---------- */
+function storageConfig() {
+  const url = clean(env.SUPABASE_URL) || clean(env.NEXT_PUBLIC_SUPABASE_URL);
+  const key = clean(env.SUPABASE_SECRET_KEY) || clean(env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!url || !key) return null;
+  let origin;
+  try { origin = new URL(url).origin; } catch { throw new Error('SUPABASE_URL غير صالح'); }
+  return { url: origin, key, bucket: clean(env.STORAGE_BUCKET) || 'nabd-media' };
+}
+
+function siteUrl() {
+  if (clean(env.SITE_URL)) return clean(env.SITE_URL).replace(/\/+$/, '');
+  if (clean(env.VERCEL_PROJECT_PRODUCTION_URL)) return `https://${clean(env.VERCEL_PROJECT_PRODUCTION_URL)}`;
+  return `http://localhost:${port}`;
+}
+
+if (env.SESSION_SECRET && env.SESSION_SECRET.length < 32) throw new Error('SESSION_SECRET قصير جدًا: استخدم 32 حرفًا على الأقل');
+
+const config = {
   rootDir,
-  dataDir,
-  uploadsDir,
+  uploadsDir: path.resolve(rootDir, env.UPLOADS_DIR || 'uploads'),
   publicDir: path.join(rootDir, 'public'),
-  dbFile: path.join(dataDir, env.DB_FILE || 'news.db'),
+  db: dbConfig(),
+  storage: storageConfig(),
   port,
   host: env.HOST || '0.0.0.0',
-  siteUrl: (env.SITE_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
+  siteUrl: siteUrl(),
   isProd,
-  cookieSecure: bool(env.COOKIE_SECURE, isProd),
-  trustProxy: bool(env.TRUST_PROXY, false),
+  isVercel,
+  cookieSecure: bool(env.COOKIE_SECURE, isProd || isVercel),
+  trustProxy: bool(env.TRUST_PROXY, isVercel),
   tz: env.TZ_NAME || 'Africa/Cairo',
-  maxUploadMb: Math.max(1, parseInt(env.MAX_UPLOAD_MB || '5', 10)),
+  // Vercel يرفض الطلبات الأكبر من 4.5 ميجابايت
+  maxUploadMb: Math.max(1, parseInt(env.MAX_UPLOAD_MB || (isVercel ? '4' : '5'), 10)),
+  maxRequestMb: isVercel ? 4.5 : null,
   seedDemo: bool(env.SEED_DEMO, true),
   feedsAllowPrivate: bool(env.FEEDS_ALLOW_PRIVATE, false),
   formMinSeconds: parseFloat(env.FORM_MIN_SECONDS ?? '3'),
-  secret: loadSecret(),
   admin: { name: env.ADMIN_NAME || 'مدير الموقع', email: env.ADMIN_EMAIL || '', password: env.ADMIN_PASSWORD || '' },
 };
+
+// مفتاح توقيع الجلسات والنماذج: من SESSION_SECRET، وإلا يُنشأ مرة واحدة ويُحفظ في قاعدة البيانات
+let secret = env.SESSION_SECRET || null;
+Object.defineProperty(config, 'secret', {
+  enumerable: true,
+  get() {
+    if (!secret) {
+      const { get, run } = require('./db');
+      run("INSERT INTO settings (key, value) VALUES ('_secret', ?) ON CONFLICT (key) DO NOTHING", crypto.randomBytes(48).toString('base64url'));
+      secret = get("SELECT value FROM settings WHERE key = '_secret'").value;
+    }
+    return secret;
+  },
+});
+
+module.exports = config;

@@ -8,9 +8,9 @@ module.exports = {
   list: () => all(`SELECT ${COLS}, (SELECT COUNT(*) FROM articles a WHERE a.author_id = users.id) AS article_count
     FROM users ORDER BY active DESC, CASE role WHEN 'admin' THEN 0 WHEN 'editor' THEN 1 WHEN 'writer' THEN 2 ELSE 3 END, name`),
   get: (id) => get(`SELECT ${COLS} FROM users WHERE id = ?`, id),
-  getByEmail: (email) => get('SELECT * FROM users WHERE email = ?', String(email || '').trim()),
+  getByEmail: (email) => get('SELECT * FROM users WHERE lower(email) = lower(?)', String(email || '').trim()),
   getWithHash: (id) => get('SELECT * FROM users WHERE id = ?', id),
-  emailTaken: (email, exceptId = 0) => !!get('SELECT 1 AS x FROM users WHERE email = ? AND id != ?', email, exceptId),
+  emailTaken: (email, exceptId = 0) => !!get('SELECT 1 AS x FROM users WHERE lower(email) = lower(?) AND id != ?', email, exceptId),
   create: ({ name, email, passwordHash, role, title, bio, isDemo }) =>
     run('INSERT INTO users (name, email, password_hash, role, title, bio, active, is_demo, created_at) VALUES (?,?,?,?,?,?,1,?,?)',
       name, email, passwordHash, role, title || null, bio || null, isDemo ? 1 : 0, nowIso()).id,

@@ -30,7 +30,7 @@ const Comments = {
   adminList(tab) {
     const base = `SELECT cm.*, a.title AS article_title, a.slug AS article_slug,
       (SELECT COUNT(*) FROM comment_reports r WHERE r.comment_id = cm.id AND r.resolved = 0) AS open_reports,
-      (SELECT GROUP_CONCAT(COALESCE(r.reason, ''), ' | ') FROM comment_reports r WHERE r.comment_id = cm.id AND r.resolved = 0) AS report_reasons
+      (SELECT string_agg(COALESCE(r.reason, ''), ' | ') FROM comment_reports r WHERE r.comment_id = cm.id AND r.resolved = 0) AS report_reasons
       FROM comments cm JOIN articles a ON a.id = cm.article_id`;
     if (tab === 'reported') return all(`${base} WHERE cm.id IN (SELECT comment_id FROM comment_reports WHERE resolved = 0) ORDER BY cm.created_at DESC LIMIT 200`);
     return all(`${base} WHERE cm.status = ? ORDER BY cm.created_at DESC LIMIT 200`, tab);
@@ -68,9 +68,9 @@ const Media = {
 const Stats = {
   articleView(id, day) {
     run('UPDATE articles SET views = views + 1 WHERE id = ?', id);
-    run('INSERT INTO article_views_daily (article_id, day, views) VALUES (?, ?, 1) ON CONFLICT(article_id, day) DO UPDATE SET views = views + 1', id, day);
+    run('INSERT INTO article_views_daily (article_id, day, views) VALUES (?, ?, 1) ON CONFLICT(article_id, day) DO UPDATE SET views = article_views_daily.views + 1', id, day);
   },
-  siteView: (day) => run('INSERT INTO site_views_daily (day, views) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET views = views + 1', day),
+  siteView: (day) => run('INSERT INTO site_views_daily (day, views) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET views = site_views_daily.views + 1', day),
   siteSeries(fromDay, toDay) {
     const map = new Map(all('SELECT day, views FROM site_views_daily WHERE day BETWEEN ? AND ?', fromDay, toDay).map((r) => [r.day, r.views]));
     const out = [];
@@ -80,7 +80,7 @@ const Stats = {
   articleViewsSum: (fromDay, toDay) => get('SELECT COALESCE(SUM(views), 0) AS n FROM article_views_daily WHERE day BETWEEN ? AND ?', fromDay, toDay).n,
   topArticles: (fromDay, toDay, limit = 10) => all(`SELECT a.id, a.slug, a.title, a.is_demo, c.name AS cat_name, u.name AS author_name, SUM(v.views) AS views
     FROM article_views_daily v JOIN articles a ON a.id = v.article_id JOIN categories c ON c.id = a.category_id LEFT JOIN users u ON u.id = a.author_id
-    WHERE v.day BETWEEN ? AND ? GROUP BY a.id ORDER BY views DESC LIMIT ?`, fromDay, toDay, limit),
+    WHERE v.day BETWEEN ? AND ? GROUP BY a.id, c.id, u.id ORDER BY views DESC LIMIT ?`, fromDay, toDay, limit),
   byCategory: (fromDay, toDay) => all(`SELECT c.name, COALESCE(SUM(v.views), 0) AS views FROM categories c
     LEFT JOIN articles a ON a.category_id = c.id LEFT JOIN article_views_daily v ON v.article_id = a.id AND v.day BETWEEN ? AND ?
     GROUP BY c.id ORDER BY views DESC`, fromDay, toDay),
@@ -89,7 +89,7 @@ const Stats = {
     GROUP BY u.id ORDER BY articles DESC`, fromIso, toIso),
   ads: (fromDay, toDay) => all(`SELECT c.id, c.title, c.advertiser_name, s.name AS slot_name, COALESCE(SUM(d.impressions), 0) AS impressions,
     COALESCE(SUM(d.clicks), 0) AS clicks FROM ad_campaigns c JOIN ad_slots s ON s.id = c.slot_id
-    LEFT JOIN ad_stats_daily d ON d.campaign_id = c.id AND d.day BETWEEN ? AND ? GROUP BY c.id ORDER BY impressions DESC`, fromDay, toDay),
+    LEFT JOIN ad_stats_daily d ON d.campaign_id = c.id AND d.day BETWEEN ? AND ? GROUP BY c.id, s.id ORDER BY impressions DESC`, fromDay, toDay),
 };
 
 /* ================= مصادر الأخبار (RSS) ================= */
@@ -105,8 +105,8 @@ const Feeds = {
     let added = 0;
     tx(() => {
       for (const it of items) {
-        const r = run(`INSERT OR IGNORE INTO feed_items (source_id, guid, title, link, summary, published_at, status, fetched_at)
-          VALUES (?, ?, ?, ?, ?, ?, 'new', ?)`, sourceId, it.guid, it.title, it.link || null, it.summary || null, it.published_at || null, nowIso());
+        const r = run(`INSERT INTO feed_items (source_id, guid, title, link, summary, published_at, status, fetched_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'new', ?) ON CONFLICT DO NOTHING`, sourceId, it.guid, it.title, it.link || null, it.summary || null, it.published_at || null, nowIso());
         added += r.changes;
       }
     });

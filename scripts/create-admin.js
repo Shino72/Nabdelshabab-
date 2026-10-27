@@ -7,7 +7,6 @@
  * كلمة المرور تُكتب مخفية، أو تُمرَّر عبر متغير البيئة ADMIN_PASSWORD.
  */
 const readline = require('node:readline');
-const config = require('../src/config');
 const db = require('../src/db');
 const seed = require('../src/seed');
 const Users = require('../src/models/users');
@@ -23,7 +22,7 @@ function ask(rl, question, hidden = false) {
 }
 
 async function main() {
-  db.open(config.dbFile);
+  db.open();
   seed.seedBase();
   const args = Object.fromEntries(process.argv.slice(2).map((a) => { const [k, ...v] = a.replace(/^--/, '').split('='); return [k, v.join('=')]; }));
   // بدون شاشة تفاعلية (مثل السكربتات الآلية) تُقرأ القيم من المعاملات ومتغير البيئة فقط

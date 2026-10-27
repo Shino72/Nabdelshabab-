@@ -10,9 +10,12 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 
+const { testDatabase } = require('./helpers');
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nabd-test-'));
+const testDb = testDatabase();
 Object.assign(process.env, {
-  SKIP_ENV_FILE: '1', DATA_DIR: path.join(tmp, 'data'), UPLOADS_DIR: path.join(tmp, 'uploads'), NODE_ENV: 'test',
+  SKIP_ENV_FILE: '1', DATABASE_URL: testDb.url, UPLOADS_DIR: path.join(tmp, 'uploads'), NODE_ENV: 'test',
   ADMIN_EMAIL: 'admin@test.local', ADMIN_PASSWORD: 'StrongPass123', ADMIN_NAME: 'مدير الاختبار',
   SEED_DEMO: 'true', FEEDS_ALLOW_PRIVATE: 'true', FORM_MIN_SECONDS: '0',
 });
@@ -57,10 +60,11 @@ const admin = new Client();
 let adminCsrf, publishedId, publishedUrl, scheduledId, writerId, campaignId, uploadedPath;
 
 before(async () => {
+  await testDb.create();
   const s = await app.start({ port: 0, host: '127.0.0.1', quiet: true });
   base = `http://127.0.0.1:${s.address().port}`;
 });
-after(async () => { await app.stop(); fs.rmSync(tmp, { recursive: true, force: true }); });
+after(async () => { await app.stop(); await testDb.drop(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
 /* ===================== الواجهة العامة ===================== */
 test('الصفحة الرئيسية تعمل مع RTL وشريط العاجل وترويسات الأمان', async () => {
