@@ -83,7 +83,8 @@ test('الصفحة الرئيسية تعمل مع RTL وشريط العاجل و
   assert.match(r.text, /<html lang="ar" dir="rtl">/);
   assert.match(r.text, /نبض الشباب/);
   assert.match(r.text, /class="ticker"/);
-  assert.match(r.text, /يعرض الموقع حاليًا محتوى تجريبيًا/);
+  assert.ok(!r.text.includes('يعرض الموقع حاليًا محتوى تجريبيًا'), 'لا يظهر شريط المحتوى التجريبي');
+  assert.match(r.text, /تجريبي/, 'المواد التجريبية تبقى معلَّمة');
   assert.match(r.text, /سيف خالد عامر/);
   assert.ok(r.headers.get('content-security-policy').includes("default-src 'self'"));
   assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
@@ -561,18 +562,4 @@ test('تسجيل الخروج ينهي الجلسة', async () => {
   const r = await admin.post('/admin/logout', { form: { _csrf: adminCsrf } });
   assert.equal(r.status, 303);
   assert.equal((await admin.get('/admin')).status, 302);
-});
-
-test('إيقاف SEED_DEMO يحذف المحتوى التجريبي عند التشغيل التالي', async () => {
-  const config = require('../src/config');
-  await require('../src/seed').seedDemo();
-  assert.ok(db.get('SELECT COUNT(*) AS n FROM articles WHERE is_demo = 1').n > 0);
-  await app.stop();
-  config.seedDemo = false;
-  const s = await app.start({ port: 0, host: '127.0.0.1', quiet: true });
-  base = `http://127.0.0.1:${s.address().port}`;
-  assert.equal(db.get('SELECT COUNT(*) AS n FROM articles WHERE is_demo = 1').n, 0);
-  const home = await new Client().get('/');
-  assert.ok(!home.text.includes('يعرض الموقع حاليًا محتوى تجريبيًا'));
-  assert.match(home.text, /عنوان خبر معدّل للاختبار/, 'المحتوى الحقيقي باقٍ');
 });

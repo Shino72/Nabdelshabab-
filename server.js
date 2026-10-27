@@ -12,6 +12,7 @@ const storage = require('./src/storage');
 const { UPLOAD_PATH } = require('./src/uploads');
 const { THEME_SCRIPT } = require('./src/views/layout');
 const { esc } = require('./src/util');
+const { get } = require('./src/db');
 
 require('./src/routes/public');
 require('./src/routes/admin');
@@ -89,8 +90,9 @@ async function init() {
     adm = { created: false, error: e.message };
   }
   let demo = 0;
-  if (fresh && config.seedDemo) demo = await seed.seedDemo();
-  else if (!config.seedDemo && seed.demoCount()) seed.deleteDemo();
+  // قاعدة جديدة، أو بلا أي مواد ولم يحذف المدير المحتوى التجريبي بنفسه: يُضاف المحتوى التجريبي
+  const empty = !fresh && !get('SELECT 1 AS x FROM articles LIMIT 1') && !get("SELECT 1 AS x FROM settings WHERE key = '_demo_removed'");
+  if (config.seedDemo && (fresh || empty)) demo = await seed.seedDemo();
   cleanupSessions();
   return { adm, demo };
 }

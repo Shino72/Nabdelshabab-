@@ -232,6 +232,8 @@ R.post('/admin/settings', guard('settings.manage', (ctx) => {
 }));
 R.post('/admin/settings/delete-demo', guard('settings.manage', (ctx) => {
   const n = seed.deleteDemo();
+  // لا يُعاد المحتوى التجريبي تلقائيًا بعد أن حذفه المدير
+  get("INSERT INTO settings (key, value) VALUES ('_demo_removed', '1') ON CONFLICT (key) DO NOTHING RETURNING key");
   audit(ctx, 'حذف المحتوى التجريبي', null, null, `${n} مادة`);
   back(ctx, '/admin/settings', 'demo_deleted');
 }));

@@ -74,8 +74,7 @@ const config = {
   // Vercel يرفض الطلبات الأكبر من 4.5 ميجابايت
   maxUploadMb: Math.max(1, parseInt(env.MAX_UPLOAD_MB || (isVercel ? '4' : '5'), 10)),
   maxRequestMb: isVercel ? 4.5 : null,
-  // المحتوى التجريبي متوقف افتراضيًا؛ وعند إيقافه يُحذف أي محتوى تجريبي موجود عند التشغيل
-  seedDemo: bool(env.SEED_DEMO, false),
+  seedDemo: bool(env.SEED_DEMO, true),
   feedsAllowPrivate: bool(env.FEEDS_ALLOW_PRIVATE, false),
   formMinSeconds: parseFloat(env.FORM_MIN_SECONDS ?? '3'),
   admin: { name: env.ADMIN_NAME || 'مدير الموقع', email: env.ADMIN_EMAIL || '', password: env.ADMIN_PASSWORD || '' },

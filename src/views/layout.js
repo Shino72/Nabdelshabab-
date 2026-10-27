@@ -128,7 +128,7 @@ ${jsonld.map(jsonLd)}
 </head>
 <body>
 <a class="skip" href="#main">تخطَّ إلى المحتوى الرئيسي</a>
-${ctx.hasDemo ? html`<div class="demo-banner" role="note">يعرض الموقع حاليًا محتوى تجريبيًا لأغراض العرض فقط. الأخبار والصور الموجودة ليست حقيقية، ويمكن حذفها من لوحة التحكم.</div>` : ''}
+
 <header class="site-header">
   <div class="topbar"><div class="wrap topbar-inner">
     <span class="today">${fmtWeekday(new Date().toISOString())}</span>
