@@ -11,6 +11,12 @@ if (!process.env.SKIP_ENV_FILE && fs.existsSync(envFile)) {
 const env = process.env;
 const bool = (v, d = false) => (v === undefined || v === '' ? d : /^(1|true|yes|on)$/i.test(v));
 const clean = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+// ربط Supabase من Vercel قد يضيف بادئة لأسماء المتغيرات (مثل STORAGE_POSTGRES_URL): نقبل الاسم كما هو أو ببادئة
+function fromEnv(name) {
+  if (clean(env[name])) return clean(env[name]);
+  const key = Object.keys(env).sort().find((k) => k.endsWith(`_${name}`) && clean(env[k]));
+  return key ? clean(env[key]) : '';
+}
 
 const isVercel = !!env.VERCEL;
 const isProd = env.NODE_ENV === 'production';
@@ -19,7 +25,7 @@ const port = parseInt(env.PORT || '3000', 10);
 /* ---------- قاعدة البيانات ---------- */
 // DATABASE_URL، أو POSTGRES_URL الذي يضيفه ربط Supabase بمشروع Vercel تلقائيًا
 function dbConfig() {
-  const raw = clean(env.DATABASE_URL) || clean(env.POSTGRES_URL);
+  const raw = clean(env.DATABASE_URL) || fromEnv('POSTGRES_URL');
   if (!raw) return null;
   let url;
   try { url = new URL(raw); } catch { throw new Error('رابط قاعدة البيانات (DATABASE_URL) غير صالح'); }
@@ -35,8 +41,8 @@ function dbConfig() {
 
 /* ---------- تخزين الصور (Supabase Storage) ---------- */
 function storageConfig() {
-  const url = clean(env.SUPABASE_URL) || clean(env.NEXT_PUBLIC_SUPABASE_URL);
-  const key = clean(env.SUPABASE_SECRET_KEY) || clean(env.SUPABASE_SERVICE_ROLE_KEY);
+  const url = fromEnv('SUPABASE_URL');
+  const key = fromEnv('SUPABASE_SECRET_KEY') || fromEnv('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !key) return null;
   let origin;
   try { origin = new URL(url).origin; } catch { throw new Error('SUPABASE_URL غير صالح'); }

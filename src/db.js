@@ -306,7 +306,12 @@ function tx(fn) {
 const FOREIGN_MARKERS = ['staff_profiles', 'article_revisions'];
 
 function open() {
-  if (!config.db) throw Object.assign(new Error('لم يُضبط رابط قاعدة البيانات. أضف DATABASE_URL (أو اربط Supabase بالمشروع على Vercel).'), { code: 'NO_DATABASE' });
+  if (!config.db) {
+    // أسماء المتغيرات الموجودة فقط (بدون قيمها) لتسهيل معرفة ما ينقص
+    const names = Object.keys(process.env).filter((k) => /POSTGRES|SUPABASE|DATABASE/.test(k)).sort();
+    const found = names.length ? ` المتغيرات الموجودة: ${names.join('، ')}` : ' لا يوجد أي متغير لقاعدة البيانات في هذه النسخة.';
+    throw Object.assign(new Error(`لم يُضبط رابط قاعدة البيانات. أضف DATABASE_URL (أو اربط Supabase بالمشروع على Vercel ثم أعد النشر).${found}`), { code: 'NO_DATABASE' });
+  }
   bridge.configure(config.db);
   return tx(() => {
     all('SELECT pg_advisory_xact_lock(724519033)');

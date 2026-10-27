@@ -40,3 +40,10 @@ test('التخزين يعمل بالمفتاح القديم أو الجديد، 
   assert.equal(load({ SUPABASE_URL: 'https://abc.supabase.co' }).storage, null);
   assert.equal(load({}).db, null);
 });
+
+test('متغيرات Supabase ببادئة (مثل STORAGE_) تُقرأ أيضًا', () => {
+  const c = load({ STORAGE_POSTGRES_URL: 'postgres://u:p@pooler.supabase.com:6543/postgres', STORAGE_POSTGRES_URL_NON_POOLING: 'postgres://u:p@direct/postgres',
+    STORAGE_SUPABASE_URL: 'https://abc.supabase.co', STORAGE_SUPABASE_SERVICE_ROLE_KEY: 'eyJ.k' });
+  assert.ok(c.db.connectionString.includes('pooler.supabase.com'));
+  assert.equal(c.storage.url, 'https://abc.supabase.co');
+});
