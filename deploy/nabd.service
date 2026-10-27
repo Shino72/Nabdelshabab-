@@ -1,0 +1,18 @@
+# خدمة systemd للتشغيل بدون Docker: انسخها إلى /etc/systemd/system/nabd.service
+[Unit]
+Description=Nabd Alshabab news website
+After=network.target
+
+[Service]
+Type=simple
+User=nabd
+WorkingDirectory=/opt/nabd
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

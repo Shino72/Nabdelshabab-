@@ -1,0 +1,17 @@
+'use strict';
+// روابط الأصول الثابتة مع بصمة المحتوى لتفعيل التخزين المؤقت الطويل
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const config = require('./config');
+
+const cache = new Map();
+function url(rel) {
+  if (!cache.has(rel) || !config.isProd) {
+    let v = '0';
+    try { v = crypto.createHash('sha1').update(fs.readFileSync(path.join(config.publicDir, rel))).digest('hex').slice(0, 10); } catch { /* تجاهل */ }
+    cache.set(rel, v);
+  }
+  return `/static/${rel}?v=${cache.get(rel)}`;
+}
+module.exports = { url };

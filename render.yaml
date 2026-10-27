@@ -1,0 +1,30 @@
+# نشر على Render.com (يتطلب خطة مدفوعة لدعم القرص الدائم الذي يحفظ قاعدة البيانات والصور).
+services:
+  - type: web
+    name: nabd-alshabab
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: news-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data/db
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+      - key: TRUST_PROXY
+        value: "true"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SITE_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SEED_DEMO
+        value: "true"

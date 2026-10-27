@@ -1,0 +1,31 @@
+# تشغيل الموقع على خادم VPS مع شهادة HTTPS تلقائية عبر Caddy.
+# قبل التشغيل: انسخ .env.example إلى .env وعدّل القيم، وعدّل الدومين في deploy/Caddyfile.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      UPLOADS_DIR: /uploads
+      TRUST_PROXY: "true"
+    volumes:
+      - news_data:/data
+      - news_uploads:/uploads
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+volumes:
+  news_data:
+  news_uploads:
+  caddy_data:
+  caddy_config:

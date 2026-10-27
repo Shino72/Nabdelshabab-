@@ -1,0 +1,8 @@
+# استبدل example.com بالدومين الخاص بك. يحصل Caddy على شهادة HTTPS مجانية ويجددها تلقائيًا.
+example.com, www.example.com {
+	encode zstd gzip
+	request_body {
+		max_size 40MB
+	}
+	reverse_proxy app:3000
+}
